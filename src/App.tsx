@@ -209,26 +209,29 @@ export default function App() {
       // Check death conditions for corridor and letter scenes
       if (block.id === 'call') {
         // ДУ-1 Option A: окликнуть
-        // Успех если vera_open === true И C1-09 собрана
+        // Успех если vera_open === true И C1-09 собрана → 1.3в
+        // Иначе → 1.3а (смерть)
         const hasVeraOpen = state.flags.vera_open === true;
         const hasC109 = state.clues.includes('C1-09');
         if (hasVeraOpen && hasC109) {
-          goToScene('1.3a_success');
+          goToScene('1.3в');
         } else {
-          goToScene('1.3a');
+          goToScene('1.3а');
         }
         return;
       }
       
       if (block.id === 'watch') {
         // ДУ-1 Option B: наблюдать
-        // Успех если C1-06 ИЛИ C1-07
+        // Успех если C1-06 ИЛИ C1-07 → 1.3в
+        // Иначе → 1.3б (ранение с intuition_lost)
         const hasC106 = state.clues.includes('C1-06');
         const hasC107 = state.clues.includes('C1-07');
         if (hasC106 || hasC107) {
-          goToScene('1.3b_success');
+          goToScene('1.3в');
         } else {
-          goToScene('1.3b');
+          setState(prev => ({ ...prev, flags: { ...prev.flags, intuition_lost: true } }));
+          goToScene('1.3б');
         }
         return;
       }
@@ -591,6 +594,7 @@ export default function App() {
     const scene = SCENES[deathScene || ''];
     // Intuition doesn't work in 2.7 and 2.8
     const isInFinalScene = deathScene?.includes('2.7') || deathScene?.includes('2.8');
+    // 1.3б sets intuition_lost, so no retry if intuition is 0
     const canRetry = state.intuition > 0 && !isInFinalScene;
     
     // Determine if this is a final death (no retry possible)
