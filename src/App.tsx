@@ -143,7 +143,19 @@ export default function App() {
     // Normal scene - autosave
     setPreviousScene(state.currentScene);
     setState(prev => {
-      const newState = { ...prev, currentScene: sceneId, chapter: scene.chapter };
+      // Reset intuition to 2 at chapter start (unless intuition_lost)
+      let newIntuition = prev.intuition;
+      if (scene.chapter > prev.chapter) {
+        // New chapter - reset intuition
+        newIntuition = prev.flags.intuition_lost ? 1 : 2;
+      }
+      
+      const newState = { 
+        ...prev, 
+        currentScene: sceneId, 
+        chapter: scene.chapter,
+        intuition: newIntuition
+      };
       saveToDisk(newState);
       return newState;
     });
@@ -189,38 +201,52 @@ export default function App() {
       // Check for accusation tracking
       if (block.id === 'c2_accuse_name') {
         setState(prev => ({ ...prev, flags: { ...prev.flags, _accused_name: option.id } as Record<string, boolean | number | string> }));
+        // Если выбрано не Вера, сразу переходим на неправильное обвинение
+        if (option.id !== 'vera') {
+          setTimeout(() => goToScene('2.7_wrong'), 0);
+          return;
+        }
       }
-      if (block.id === 'c2_motive') {
+      if (block.id === 'c2_accuse_motive') {
         setState(prev => ({ ...prev, flags: { ...prev.flags, _accused_motive: option.id } as Record<string, boolean | number | string> }));
+      }
+      if (block.id === 'c2_accuse_clue') {
+        setState(prev => ({ ...prev, flags: { ...prev.flags, _accused_evidence: option.id } as Record<string, boolean | number | string> }));
       }
       
       // Check death conditions for corridor and letter scenes
       if (block.id === 'call') {
-        // Corridor option A
+        // ДУ-1 Option A: окликнуть
+        // Успех если vera_open === true И C1-09 собрана → 1.3в
+        // Иначе → 1.3а (смерть)
         const hasVeraOpen = state.flags.vera_open === true;
         const hasC109 = state.clues.includes('C1-09');
         if (hasVeraOpen && hasC109) {
-          goToScene('1.3a_success');
+          goToScene('1.3в');
         } else {
-          goToScene('1.3a');
+          goToScene('1.3а');
         }
         return;
       }
       
       if (block.id === 'watch') {
-        // Corridor option B
+        // ДУ-1 Option B: наблюдать
+        // Успех если C1-06 ИЛИ C1-07 → 1.3в
+        // Иначе → 1.3б (ранение с intuition_lost)
         const hasC106 = state.clues.includes('C1-06');
         const hasC107 = state.clues.includes('C1-07');
         if (hasC106 || hasC107) {
-          goToScene('1.3б_success');
+          goToScene('1.3в');
         } else {
+          setState(prev => ({ ...prev, flags: { ...prev.flags, intuition_lost: true } }));
           goToScene('1.3б');
         }
         return;
       }
       
       if (block.id === 'truth' && state.currentScene === '2.5') {
-        // Letter option A
+        // ДУ-2 Option A: правда
+        // Успех если vera_open === true И C1-09 И C2-05
         const hasVeraOpen = state.flags.vera_open === true;
         const hasC109 = state.clues.includes('C1-09');
         const hasC205 = state.clues.includes('C2-05');
@@ -232,19 +258,29 @@ export default function App() {
         return;
       }
       
-      if (block.id === 'letter' && state.currentScene === '2.7c') {
-        // Final evidence check
+      if ((block.id === 'letter' || block.id === 'clock') && state.currentScene === '2.7c') {
+        // 2.7 Финальное обвинение - выбор улики
+        // T7: hartley_skeptic не блокирует, но меняет реплику
+        // T8/T9: wrong_accusation проверяется
         const accusedVera = String(state.flags._accused_name) === 'vera';
         const correctMotive = String(state.flags._accused_motive) === 'revenge';
         const hasC205 = state.clues.includes('C2-05');
         const hasC202 = state.clues.includes('C2-02');
+        const wrongAccusation = state.flags.wrong_accusation === true;
         
+        // T9: Если wrong_accusation=true, идём на 2.8-b
+        if (wrongAccusation) {
+          goToScene('2.7_wrong');
+          return;
+        }
+        
+        // T1-T3: Проверка полного обвинения Веры
         if (accusedVera && correctMotive && hasC205 && hasC202) {
-          goToScene('2.8_truth');
+          goToScene('2.7_truth');
         } else if (accusedVera) {
           goToScene('2.7_death');
         } else {
-          goToScene('2.8b');
+          goToScene('2.7_wrong');
         }
         return;
       }
@@ -285,7 +321,11 @@ export default function App() {
 
   // Handle retry after death
   const handleRetry = () => {
-    if (state.intuition > 0) {
+    // Intuition doesn't work in 2.7 and 2.8
+    const currentSceneData = SCENES[deathScene || ''];
+    const isInFinalScene = deathScene?.startsWith('2.7') || deathScene?.startsWith('2.8');
+    
+    if (state.intuition > 0 && !isInFinalScene) {
       setState(prev => ({ ...prev, intuition: prev.intuition - 1 }));
       goToScene(previousScene || state.currentScene);
     }
@@ -311,6 +351,15 @@ export default function App() {
 
   // Render block
   const renderBlock = (block: Block, index: number) => {
+    // Special handling for conditional text in scene 2.6
+    if (block.type === 'narration' && state.currentScene === '2.6' && block.text.includes('Прайс принёс конверт')) {
+      const priceClosed = state.flags.price_closed === true;
+      const text = priceClosed 
+        ? 'Мэй — горничная — принесла конверт. Прайс не вышел. Он боится.'
+        : 'Прайс положил конверт перед вами. Руки дрожали.';
+      return <p key={index} className="narration fade-in">{text}</p>;
+    }
+    
     switch (block.type) {
       case 'narration':
         return <p key={index} className="narration fade-in">{block.text}</p>;
@@ -511,44 +560,88 @@ export default function App() {
   };
 
   const renderSummary = () => {
-    const facts = state.clues.map(id => CLUES[id]).filter(c => c?.type === 'факт');
-    const psych = state.clues.map(id => CLUES[id]).filter(c => c?.type === 'психология');
-    
-    const characterNotes: string[] = [];
-    if (state.flags.vera_open) characterNotes.push('Вера: открыта, но напугана. Возможно, союзник.');
-    if (state.flags.vera_closed) characterNotes.push('Вера: закрыта. Скрывает больше, чем говорит.');
-    if (state.flags.julian_susp) characterNotes.push('Джулиан: нервничает, что-то скрывает.');
-    if (state.flags.julian_coward) characterNotes.push('Джулиан: трус. Бежит от ответственности.');
-    if (state.flags.rose_ally) characterNotes.push('Роуз: помогает. Знает о завещании.');
-    if (state.flags.stannard_ally) characterNotes.push('Станнард: лоялен. Но слишком лоялен.');
-    if (state.flags.stannard_closed) characterNotes.push('Станнард: закрыт. Что-то скрывает.');
-    if (state.flags.crait_doubt) characterNotes.push('Крейт: сомневается. Можно убедить.');
-    
-    const questions: string[] = [];
-    if (!state.clues.includes('C1-09')) questions.push('Что Вера пыталась сказать?');
-    if (!state.clues.includes('C2-05')) questions.push('О чём было письмо Хартли?');
-    if (!state.clues.includes('C2-02')) questions.push('Почему Вера ненавидит Хартли?');
-    if (state.clues.includes('C1-08') && !state.clues.includes('C2-07')) questions.push('Что Станнард унёс из кабинета?');
+    // Три статические сводки с дословным текстом из спецификации
+    const summary1 = {
+      facts: [
+        'Чашка вымыта, но пахнет миндалём.',
+        'Часы остановились в десять вечера, а отставали на семь минут — значит, смерть около десяти минут одиннадцатого.',
+        'Леди Миртл объявила о новом завещании за ужином.'
+      ],
+      people: [
+        'Джулиан лжёт о деньгах и боится не разорения, а позора.',
+        'Роуз знает больше, чем говорит.',
+        'Доктор Крайт скрывает диагноз.',
+        'Вера не лжёт — она просто не говорит; её руки спокойны, когда все вздрагивают.'
+      ],
+      questions: [
+        'Зачем мыть чашку, если её всё равно найдут.',
+        'Почему Вера не ложилась.'
+      ]
+    };
+
+    const summary2 = {
+      facts: [
+        'Чашка вымыта и пахнет миндалём.',
+        'Смерть около 22:07.',
+        'Джулиан слышал шаги, но не вышел.',
+        'Роуз подделала подпись на страховке, чтобы спасти брата от долгов.',
+        'Роуз видела Веру в западном крыле в 21:15.'
+      ],
+      people: [
+        'Джулиан — трус, но не убийца.',
+        'Роуз — тоже трусиха, и это её мучает.',
+        'Вера не лгала про аптеку — она просто не сказала, где была. Её руки спокойны.'
+      ],
+      questions: [
+        'Почему Вера не ложилась в ту ночь.',
+        'Что она делала в западном крыле, если не шла к леди Миртл.'
+      ]
+    };
+
+    const summary3 = {
+      facts: [
+        'Смерть около 22:07.',
+        'Чашка вымыта и пахнет миндалём.',
+        'Вера была в западном крыле в 21:15.',
+        'Вера ищет сына, которого леди Миртл отдала в приют.',
+        'Вера не ложилась в ту ночь.'
+      ],
+      people: [
+        'Джулиан лгал о деньгах, но не убивал.',
+        'Роуз подделала подпись из любви к брату.',
+        'Вера не лгала — она просто не говорила. И её руки были спокойны, когда все вздрагивали.'
+      ],
+      questions: [
+        'Почему леди Миртл сказала Вере, что сын умер.',
+        'И почему она вообще держала его при себе.'
+      ]
+    };
+
+    // Выбор сводки на основе текущей сцены
+    let summary;
+    if (state.currentScene >= '2.1' && state.currentScene < '2.4') {
+      summary = summary1;
+    } else if (state.currentScene >= '2.4' && state.currentScene < '2.7') {
+      summary = summary2;
+    } else {
+      summary = summary3;
+    }
 
     return (
       <div className="modal-overlay" onClick={() => setScreen('game')}>
         <div className="modal-content" onClick={e => e.stopPropagation()}>
           <h3 className="modal-title">Сводка дела</h3>
           <div className="summary-block">
-            <h4>Что я знаю точно</h4>
-            {facts.length === 0 ? <p style={{ color: 'var(--muted)', fontStyle: 'italic' }}>Пока ничего.</p> :
-              facts.map(f => <p key={f.id}>— {f.text}</p>)}
+            <h4>ЧТО Я ЗНАЮ ТОЧНО</h4>
+            {summary.facts.map((fact, i) => <p key={i}>— {fact}</p>)}
           </div>
           <div className="summary-block">
-            <h4>Что я думаю о людях</h4>
-            {characterNotes.length === 0 ? <p style={{ color: 'var(--muted)', fontStyle: 'italic' }}>Пока ничего.</p> :
-              characterNotes.map((n, i) => <p key={i}>— {n}</p>)}
-            {psych.length > 0 && psych.map(p => <p key={p.id} style={{ color: 'var(--muted)', fontSize: '0.9em' }}>— {p.text}</p>)}
+            <h4>ЧТО Я ДУМАЮ О ЛЮДЯХ</h4>
+            {summary.people.map((person, i) => <p key={i}>— {person}</p>)}
           </div>
           <div className="summary-block">
-            <h4>Чего я не понимаю</h4>
-            {questions.length === 0 ? <p style={{ color: 'var(--muted)', fontStyle: 'italic' }}>Всё ясно.</p> :
-              questions.map((q, i) => <p key={i}>— {q}</p>)}
+            <h4>ЧЕГО Я НЕ ПОНИМАЮ</h4>
+            {summary.questions.map((question, i) => <p key={i}>— {question}</p>)}
           </div>
           <div style={{ marginTop: '1.5em', textAlign: 'center' }}>
             <button className="btn" onClick={() => setScreen('game')}>Закрыть</button>
@@ -560,7 +653,10 @@ export default function App() {
 
   const renderDeath = () => {
     const scene = SCENES[deathScene || ''];
-    const canRetry = state.intuition > 0 && deathScene !== '2.7_death' && deathScene !== '2.5a_death';
+    // Intuition doesn't work in 2.7 and 2.8
+    const isInFinalScene = deathScene?.includes('2.7') || deathScene?.includes('2.8');
+    // 1.3б sets intuition_lost, so no retry if intuition is 0
+    const canRetry = state.intuition > 0 && !isInFinalScene;
     
     // Determine if this is a final death (no retry possible)
     const isFinalDeath = !canRetry;
@@ -622,11 +718,71 @@ export default function App() {
 
   const renderContinuation = () => {
     const scene = SCENES[state.currentScene];
+    const sceneId = state.currentScene;
+    
+    // T11-T14: Условный рендеринг на основе флагов
+    const veraAlly = state.flags.vera_ally === true;
+    const veraSusp = (state.flags.vera_susp as number) >= 1;
+    const priceClosed = state.flags.price_closed === true;
+    const roseAlly = state.flags.rose_ally === true;
+    const hartleySkeptic = state.flags.hartley_skeptic === true;
+    
+    // Модифицируем блоки сцены на основе флагов
+    const modifiedBlocks = scene?.blocks.map((block, i) => {
+      // T13: price_closed → Мэй вместо Прайса в 2.8
+      if ((sceneId === '2.8' || sceneId === '2.8_truth') && priceClosed) {
+        if (block.type === 'narration' && block.text.includes('Прайс принёс мне конверт')) {
+          return { ...block, text: 'Мэй принесла мне конверт. Плотный, кремовый, с сургучом, уже сломанным. Прайс не вышел — он боялся.' };
+        }
+        if (block.type === 'speaker' && block.name === 'Прайс') {
+          return { ...block, name: 'Мэй' };
+        }
+      }
+      
+      // T11: vera_ally → доп. реплика Веры в 2.8
+      if ((sceneId === '2.8' || sceneId === '2.8_truth') && veraAlly) {
+        if (block.type === 'speaker' && block.name === 'Вера' && block.text.includes('Спросите мисс Вейл')) {
+          return { ...block, text: '— Спросите мисс Вейл, кто нанял её в этот дом. И зачем. — Она посмотрела на меня. — Спасибо, что поверили.' };
+        }
+      }
+      
+      // T7: hartley_skeptic → доп. реплика инспектора в 2.7_truth
+      if (sceneId === '2.7_truth' && hartleySkeptic) {
+        if (block.type === 'speaker' && block.name === 'Хартли' && block.text.includes('И вы убили её')) {
+          return { ...block, text: '— И вы убили её. Хотя я не верил, что стенографистка сможет докопаться до правды.' };
+        }
+      }
+      
+      return block;
+    }) || [];
+    
+    // T12: vera_susp → другая реплика в 2.8b
+    const blocksForRender = (sceneId === '2.8b' && veraSusp) 
+      ? modifiedBlocks.map(block => {
+          if (block.type === 'speaker' && block.name === 'Вера' && block.text.includes('вы не поверили мне')) {
+            return { ...block, text: '— Вы были правы насчёт подписи. И ошиблись насчёт человека. — Она надела перчатки. — Я не убивала леди Миртл, мисс Вейл. Но я знаю, кто это сделал. И я не скажу вам. Вы слишком долго сомневались.' };
+          }
+          return block;
+        })
+      : modifiedBlocks;
+    
+    // T14: rose_ally → Роуз плачет/не плачет в 2.8b
+    const finalBlocks = (sceneId === '2.8b')
+      ? blocksForRender.map(block => {
+          if (block.type === 'narration' && block.text.includes('она заплакала')) {
+            return roseAlly 
+              ? block
+              : { ...block, text: 'Инспектор увёл Джулиана вниз. Он не сопротивлялся.' };
+          }
+          return block;
+        })
+      : blocksForRender;
+    
     return (
       <div className="continuation-screen">
         <h2 className="continuation-header">{continuationData?.header}</h2>
         <div className="game-column" style={{ textAlign: 'left', marginBottom: '2em' }}>
-          {scene?.blocks.map((block, i) => (
+          {finalBlocks.map((block, i) => (
             <div key={i}>
               {block.type === 'narration' && <p className="narration">{block.text}</p>}
               {block.type === 'speaker' && (
