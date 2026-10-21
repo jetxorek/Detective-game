@@ -201,9 +201,17 @@ export default function App() {
       // Check for accusation tracking
       if (block.id === 'c2_accuse_name') {
         setState(prev => ({ ...prev, flags: { ...prev.flags, _accused_name: option.id } as Record<string, boolean | number | string> }));
+        // Если выбрано не Вера, сразу переходим на неправильное обвинение
+        if (option.id !== 'vera') {
+          setTimeout(() => goToScene('2.7_wrong'), 0);
+          return;
+        }
       }
-      if (block.id === 'c2_motive') {
+      if (block.id === 'c2_accuse_motive') {
         setState(prev => ({ ...prev, flags: { ...prev.flags, _accused_motive: option.id } as Record<string, boolean | number | string> }));
+      }
+      if (block.id === 'c2_accuse_clue') {
+        setState(prev => ({ ...prev, flags: { ...prev.flags, _accused_evidence: option.id } as Record<string, boolean | number | string> }));
       }
       
       // Check death conditions for corridor and letter scenes
@@ -250,20 +258,20 @@ export default function App() {
         return;
       }
       
-      if (block.id === 'letter' && state.currentScene === '2.7c') {
-        // 2.7 Финальное обвинение
-        // Успех если имя = Вера Линд И мотив = сын/месть И улика = C2-05 И C2-02
+      if ((block.id === 'letter' || block.id === 'clock') && state.currentScene === '2.7c') {
+        // 2.7 Финальное обвинение - выбор улики
+        // Успех если имя = Вера Линд И мотив = сын/месть И улика = письмо (C2-05) И часы (C2-02)
         const accusedVera = String(state.flags._accused_name) === 'vera';
         const correctMotive = String(state.flags._accused_motive) === 'revenge';
         const hasC205 = state.clues.includes('C2-05');
         const hasC202 = state.clues.includes('C2-02');
         
         if (accusedVera && correctMotive && hasC205 && hasC202) {
-          goToScene('2.8_truth');
+          goToScene('2.7_truth');
         } else if (accusedVera) {
           goToScene('2.7_death');
         } else {
-          goToScene('2.8b');
+          goToScene('2.7_wrong');
         }
         return;
       }
