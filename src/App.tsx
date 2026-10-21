@@ -551,44 +551,88 @@ export default function App() {
   };
 
   const renderSummary = () => {
-    const facts = state.clues.map(id => CLUES[id]).filter(c => c?.type === 'факт');
-    const psych = state.clues.map(id => CLUES[id]).filter(c => c?.type === 'психология');
-    
-    const characterNotes: string[] = [];
-    if (state.flags.vera_open) characterNotes.push('Вера: открыта, но напугана. Возможно, союзник.');
-    if (state.flags.vera_closed) characterNotes.push('Вера: закрыта. Скрывает больше, чем говорит.');
-    if (state.flags.julian_susp) characterNotes.push('Джулиан: нервничает, что-то скрывает.');
-    if (state.flags.julian_coward) characterNotes.push('Джулиан: трус. Бежит от ответственности.');
-    if (state.flags.rose_ally) characterNotes.push('Роуз: помогает. Знает о завещании.');
-    if (state.flags.stannard_ally) characterNotes.push('Станнард: лоялен. Но слишком лоялен.');
-    if (state.flags.stannard_closed) characterNotes.push('Станнард: закрыт. Что-то скрывает.');
-    if (state.flags.crait_doubt) characterNotes.push('Крейт: сомневается. Можно убедить.');
-    
-    const questions: string[] = [];
-    if (!state.clues.includes('C1-09')) questions.push('Что Вера пыталась сказать?');
-    if (!state.clues.includes('C2-05')) questions.push('О чём было письмо Хартли?');
-    if (!state.clues.includes('C2-02')) questions.push('Почему Вера ненавидит Хартли?');
-    if (state.clues.includes('C1-08') && !state.clues.includes('C2-07')) questions.push('Что Станнард унёс из кабинета?');
+    // Три статические сводки с дословным текстом из спецификации
+    const summary1 = {
+      facts: [
+        'Чашка вымыта, но пахнет миндалём.',
+        'Часы остановились в десять вечера, а отставали на семь минут — значит, смерть около десяти минут одиннадцатого.',
+        'Леди Миртл объявила о новом завещании за ужином.'
+      ],
+      people: [
+        'Джулиан лжёт о деньгах и боится не разорения, а позора.',
+        'Роуз знает больше, чем говорит.',
+        'Доктор Крайт скрывает диагноз.',
+        'Вера не лжёт — она просто не говорит; её руки спокойны, когда все вздрагивают.'
+      ],
+      questions: [
+        'Зачем мыть чашку, если её всё равно найдут.',
+        'Почему Вера не ложилась.'
+      ]
+    };
+
+    const summary2 = {
+      facts: [
+        'Чашка вымыта и пахнет миндалём.',
+        'Смерть около 22:07.',
+        'Джулиан слышал шаги, но не вышел.',
+        'Роуз подделала подпись на страховке, чтобы спасти брата от долгов.',
+        'Роуз видела Веру в западном крыле в 21:15.'
+      ],
+      people: [
+        'Джулиан — трус, но не убийца.',
+        'Роуз — тоже трусиха, и это её мучает.',
+        'Вера не лгала про аптеку — она просто не сказала, где была. Её руки спокойны.'
+      ],
+      questions: [
+        'Почему Вера не ложилась в ту ночь.',
+        'Что она делала в западном крыле, если не шла к леди Миртл.'
+      ]
+    };
+
+    const summary3 = {
+      facts: [
+        'Смерть около 22:07.',
+        'Чашка вымыта и пахнет миндалём.',
+        'Вера была в западном крыле в 21:15.',
+        'Вера ищет сына, которого леди Миртл отдала в приют.',
+        'Вера не ложилась в ту ночь.'
+      ],
+      people: [
+        'Джулиан лгал о деньгах, но не убивал.',
+        'Роуз подделала подпись из любви к брату.',
+        'Вера не лгала — она просто не говорила. И её руки были спокойны, когда все вздрагивали.'
+      ],
+      questions: [
+        'Почему леди Миртл сказала Вере, что сын умер.',
+        'И почему она вообще держала его при себе.'
+      ]
+    };
+
+    // Выбор сводки на основе текущей сцены
+    let summary;
+    if (state.currentScene >= '2.1' && state.currentScene < '2.4') {
+      summary = summary1;
+    } else if (state.currentScene >= '2.4' && state.currentScene < '2.7') {
+      summary = summary2;
+    } else {
+      summary = summary3;
+    }
 
     return (
       <div className="modal-overlay" onClick={() => setScreen('game')}>
         <div className="modal-content" onClick={e => e.stopPropagation()}>
           <h3 className="modal-title">Сводка дела</h3>
           <div className="summary-block">
-            <h4>Что я знаю точно</h4>
-            {facts.length === 0 ? <p style={{ color: 'var(--muted)', fontStyle: 'italic' }}>Пока ничего.</p> :
-              facts.map(f => <p key={f.id}>— {f.text}</p>)}
+            <h4>ЧТО Я ЗНАЮ ТОЧНО</h4>
+            {summary.facts.map((fact, i) => <p key={i}>— {fact}</p>)}
           </div>
           <div className="summary-block">
-            <h4>Что я думаю о людях</h4>
-            {characterNotes.length === 0 ? <p style={{ color: 'var(--muted)', fontStyle: 'italic' }}>Пока ничего.</p> :
-              characterNotes.map((n, i) => <p key={i}>— {n}</p>)}
-            {psych.length > 0 && psych.map(p => <p key={p.id} style={{ color: 'var(--muted)', fontSize: '0.9em' }}>— {p.text}</p>)}
+            <h4>ЧТО Я ДУМАЮ О ЛЮДЯХ</h4>
+            {summary.people.map((person, i) => <p key={i}>— {person}</p>)}
           </div>
           <div className="summary-block">
-            <h4>Чего я не понимаю</h4>
-            {questions.length === 0 ? <p style={{ color: 'var(--muted)', fontStyle: 'italic' }}>Всё ясно.</p> :
-              questions.map((q, i) => <p key={i}>— {q}</p>)}
+            <h4>ЧЕГО Я НЕ ПОНИМАЮ</h4>
+            {summary.questions.map((question, i) => <p key={i}>— {question}</p>)}
           </div>
           <div style={{ marginTop: '1.5em', textAlign: 'center' }}>
             <button className="btn" onClick={() => setScreen('game')}>Закрыть</button>
