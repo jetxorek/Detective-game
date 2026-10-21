@@ -431,6 +431,16 @@ html, body {
   animation: fadeIn 0.2s ease-out;
 }
 
+@keyframes fadeToBlack {
+  0% { opacity: 0; }
+  30% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+.fade-to-black {
+  animation: fadeToBlack 3s ease-in;
+}
+
 /* Intuition indicator */
 .intuition-indicator {
   font-family: var(--font-ui);

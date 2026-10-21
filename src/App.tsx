@@ -674,43 +674,55 @@ export default function App() {
 
     return (
       <div className="death-screen">
-        <h2 className="death-title">{scene?.title || 'Смерть'}</h2>
-        <div style={{ maxWidth: '38em', textAlign: 'left' }}>
-          {scene?.blocks.map((block, i) => (
-            <div key={i}>
-              {block.type === 'narration' && <p style={{ marginBottom: '1em' }}>{block.text}</p>}
-              {block.type === 'thought' && <p style={{ fontStyle: 'italic', borderLeft: '2px solid rgba(192,80,77,0.3)', paddingLeft: '1em', margin: '1em 0' }}>{block.text}</p>}
-            </div>
-          ))}
-        </div>
-        {epitaph && (
-          <p style={{ 
-            fontFamily: 'var(--font-heading)', 
-            fontStyle: 'italic', 
-            fontSize: '1.1em',
-            color: '#9A9488',
-            marginTop: '2em',
-            marginBottom: '1em',
-            textAlign: 'center'
-          }}>
-            {epitaph}
-          </p>
-        )}
-        <p className="death-reason">{deathReason}</p>
-        <p className="death-hint">{deathHint}</p>
-        <div style={{ display: 'flex', gap: '1em', flexWrap: 'wrap', justifyContent: 'center' }}>
-          {canRetry && (
-            <button className="btn" style={{ borderColor: '#C0504D', color: '#C0504D' }} onClick={handleRetry}>
-              Переиграть сцену (попыток: {state.intuition})
+        <div className="fade-to-black" style={{ 
+          position: 'absolute', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          background: '#000',
+          zIndex: 1,
+          pointerEvents: 'none'
+        }} />
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <h2 className="death-title">{scene?.title || 'Смерть'}</h2>
+          <div style={{ maxWidth: '38em', textAlign: 'left' }}>
+            {scene?.blocks.map((block, i) => (
+              <div key={i}>
+                {block.type === 'narration' && <p style={{ marginBottom: '1em' }}>{block.text}</p>}
+                {block.type === 'thought' && <p style={{ fontStyle: 'italic', borderLeft: '2px solid rgba(192,80,77,0.3)', paddingLeft: '1em', margin: '1em 0' }}>{block.text}</p>}
+              </div>
+            ))}
+          </div>
+          {epitaph && (
+            <p style={{ 
+              fontFamily: 'var(--font-heading)', 
+              fontStyle: 'italic', 
+              fontSize: '1.1em',
+              color: '#9A9488',
+              marginTop: '2em',
+              marginBottom: '1em',
+              textAlign: 'center'
+            }}>
+              {epitaph}
+            </p>
+          )}
+          <p className="death-reason">{deathReason}</p>
+          <p className="death-hint">{deathHint}</p>
+          <div style={{ display: 'flex', gap: '1em', flexWrap: 'wrap', justifyContent: 'center' }}>
+            {canRetry && (
+              <button className="btn" style={{ borderColor: '#C0504D', color: '#C0504D' }} onClick={handleRetry}>
+                Переиграть сцену (попыток: {state.intuition})
+              </button>
+            )}
+            <button className="btn" style={{ borderColor: '#9A9488', color: '#9A9488' }} onClick={() => setScreen('missed_clues')}>
+              Что вы упустили
             </button>
-          )}
-          <button className="btn" style={{ borderColor: '#9A9488', color: '#9A9488' }} onClick={() => setScreen('missed_clues')}>
-            Что вы упустили
-          </button>
-          <button className="btn btn-primary" onClick={() => { setScreen('title'); }}>В меню</button>
-          {isFinalDeath && (
-            <button className="btn" onClick={handleNewGame}>Начать заново</button>
-          )}
+            <button className="btn btn-primary" onClick={() => { setScreen('title'); }}>В меню</button>
+            {isFinalDeath && (
+              <button className="btn" onClick={handleNewGame}>Начать заново</button>
+            )}
+          </div>
         </div>
       </div>
     );
