@@ -260,12 +260,21 @@ export default function App() {
       
       if ((block.id === 'letter' || block.id === 'clock') && state.currentScene === '2.7c') {
         // 2.7 Финальное обвинение - выбор улики
-        // Успех если имя = Вера Линд И мотив = сын/месть И улика = письмо (C2-05) И часы (C2-02)
+        // T7: hartley_skeptic не блокирует, но меняет реплику
+        // T8/T9: wrong_accusation проверяется
         const accusedVera = String(state.flags._accused_name) === 'vera';
         const correctMotive = String(state.flags._accused_motive) === 'revenge';
         const hasC205 = state.clues.includes('C2-05');
         const hasC202 = state.clues.includes('C2-02');
+        const wrongAccusation = state.flags.wrong_accusation === true;
         
+        // T9: Если wrong_accusation=true, идём на 2.8-b
+        if (wrongAccusation) {
+          goToScene('2.7_wrong');
+          return;
+        }
+        
+        // T1-T3: Проверка полного обвинения Веры
         if (accusedVera && correctMotive && hasC205 && hasC202) {
           goToScene('2.7_truth');
         } else if (accusedVera) {
@@ -709,11 +718,71 @@ export default function App() {
 
   const renderContinuation = () => {
     const scene = SCENES[state.currentScene];
+    const sceneId = state.currentScene;
+    
+    // T11-T14: Условный рендеринг на основе флагов
+    const veraAlly = state.flags.vera_ally === true;
+    const veraSusp = (state.flags.vera_susp as number) >= 1;
+    const priceClosed = state.flags.price_closed === true;
+    const roseAlly = state.flags.rose_ally === true;
+    const hartleySkeptic = state.flags.hartley_skeptic === true;
+    
+    // Модифицируем блоки сцены на основе флагов
+    const modifiedBlocks = scene?.blocks.map((block, i) => {
+      // T13: price_closed → Мэй вместо Прайса в 2.8
+      if ((sceneId === '2.8' || sceneId === '2.8_truth') && priceClosed) {
+        if (block.type === 'narration' && block.text.includes('Прайс принёс мне конверт')) {
+          return { ...block, text: 'Мэй принесла мне конверт. Плотный, кремовый, с сургучом, уже сломанным. Прайс не вышел — он боялся.' };
+        }
+        if (block.type === 'speaker' && block.name === 'Прайс') {
+          return { ...block, name: 'Мэй' };
+        }
+      }
+      
+      // T11: vera_ally → доп. реплика Веры в 2.8
+      if ((sceneId === '2.8' || sceneId === '2.8_truth') && veraAlly) {
+        if (block.type === 'speaker' && block.name === 'Вера' && block.text.includes('Спросите мисс Вейл')) {
+          return { ...block, text: '— Спросите мисс Вейл, кто нанял её в этот дом. И зачем. — Она посмотрела на меня. — Спасибо, что поверили.' };
+        }
+      }
+      
+      // T7: hartley_skeptic → доп. реплика инспектора в 2.7_truth
+      if (sceneId === '2.7_truth' && hartleySkeptic) {
+        if (block.type === 'speaker' && block.name === 'Хартли' && block.text.includes('И вы убили её')) {
+          return { ...block, text: '— И вы убили её. Хотя я не верил, что стенографистка сможет докопаться до правды.' };
+        }
+      }
+      
+      return block;
+    }) || [];
+    
+    // T12: vera_susp → другая реплика в 2.8b
+    const blocksForRender = (sceneId === '2.8b' && veraSusp) 
+      ? modifiedBlocks.map(block => {
+          if (block.type === 'speaker' && block.name === 'Вера' && block.text.includes('вы не поверили мне')) {
+            return { ...block, text: '— Вы были правы насчёт подписи. И ошиблись насчёт человека. — Она надела перчатки. — Я не убивала леди Миртл, мисс Вейл. Но я знаю, кто это сделал. И я не скажу вам. Вы слишком долго сомневались.' };
+          }
+          return block;
+        })
+      : modifiedBlocks;
+    
+    // T14: rose_ally → Роуз плачет/не плачет в 2.8b
+    const finalBlocks = (sceneId === '2.8b')
+      ? blocksForRender.map(block => {
+          if (block.type === 'narration' && block.text.includes('она заплакала')) {
+            return roseAlly 
+              ? block
+              : { ...block, text: 'Инспектор увёл Джулиана вниз. Он не сопротивлялся.' };
+          }
+          return block;
+        })
+      : blocksForRender;
+    
     return (
       <div className="continuation-screen">
         <h2 className="continuation-header">{continuationData?.header}</h2>
         <div className="game-column" style={{ textAlign: 'left', marginBottom: '2em' }}>
-          {scene?.blocks.map((block, i) => (
+          {finalBlocks.map((block, i) => (
             <div key={i}>
               {block.type === 'narration' && <p className="narration">{block.text}</p>}
               {block.type === 'speaker' && (
