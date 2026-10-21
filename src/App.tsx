@@ -442,6 +442,9 @@ export default function App() {
           <button className="btn" onClick={() => setScreen('settings')}>Настройки</button>
         </div>
         <p style={{ fontFamily: 'var(--font-ui)', fontSize: '0.75em', color: 'var(--muted)', marginTop: '2em', maxWidth: '28em', textAlign: 'center' }}>
+          В этой игре смерть окончательна. Каждая попытка — одна история.
+        </p>
+        <p style={{ fontFamily: 'var(--font-ui)', fontSize: '0.7em', color: 'var(--muted)', marginTop: '1em', maxWidth: '28em', textAlign: 'center' }}>
           Прогресс сохраняется в браузере. Очистка данных браузера удалит сохранения.
         </p>
       </div>
@@ -517,7 +520,7 @@ export default function App() {
           )}
         </div>
         <div className="intuition-indicator">
-          Интуиция: {'●'.repeat(state.intuition)}{'○'.repeat(Math.max(0, 2 - state.intuition))}
+          Попытки: {'●'.repeat(state.intuition)}{'○'.repeat(Math.max(0, 2 - state.intuition))}
         </div>
       </div>
     );
@@ -661,6 +664,14 @@ export default function App() {
     // Determine if this is a final death (no retry possible)
     const isFinalDeath = !canRetry;
 
+    // Эпитафии для разных смертельных узлов
+    const epitaphs: Record<string, string> = {
+      '1.3а': 'Элинор Вейл. 1900–1934. Она записала всё, кроме того, что было важно.',
+      '2.5a_death': 'Элинор Вейл. 1900–1934. Она держала письмо крепче, чем следовало.',
+      '2.7_death': 'Элинор Вейл. 1900–1934. Она назвала имя, но не смогла его удержать.',
+    };
+    const epitaph = epitaphs[deathScene || ''];
+
     return (
       <div className="death-screen">
         <h2 className="death-title">{scene?.title || 'Смерть'}</h2>
@@ -672,12 +683,25 @@ export default function App() {
             </div>
           ))}
         </div>
+        {epitaph && (
+          <p style={{ 
+            fontFamily: 'var(--font-heading)', 
+            fontStyle: 'italic', 
+            fontSize: '1.1em',
+            color: '#9A9488',
+            marginTop: '2em',
+            marginBottom: '1em',
+            textAlign: 'center'
+          }}>
+            {epitaph}
+          </p>
+        )}
         <p className="death-reason">{deathReason}</p>
         <p className="death-hint">{deathHint}</p>
         <div style={{ display: 'flex', gap: '1em', flexWrap: 'wrap', justifyContent: 'center' }}>
           {canRetry && (
             <button className="btn" style={{ borderColor: '#C0504D', color: '#C0504D' }} onClick={handleRetry}>
-              Переиграть сцену (интуиция: {state.intuition})
+              Переиграть сцену (попыток: {state.intuition})
             </button>
           )}
           <button className="btn" style={{ borderColor: '#9A9488', color: '#9A9488' }} onClick={() => setScreen('missed_clues')}>
