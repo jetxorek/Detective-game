@@ -143,7 +143,19 @@ export default function App() {
     // Normal scene - autosave
     setPreviousScene(state.currentScene);
     setState(prev => {
-      const newState = { ...prev, currentScene: sceneId, chapter: scene.chapter };
+      // Reset intuition to 2 at chapter start (unless intuition_lost)
+      let newIntuition = prev.intuition;
+      if (scene.chapter > prev.chapter) {
+        // New chapter - reset intuition
+        newIntuition = prev.flags.intuition_lost ? 1 : 2;
+      }
+      
+      const newState = { 
+        ...prev, 
+        currentScene: sceneId, 
+        chapter: scene.chapter,
+        intuition: newIntuition
+      };
       saveToDisk(newState);
       return newState;
     });
@@ -196,7 +208,8 @@ export default function App() {
       
       // Check death conditions for corridor and letter scenes
       if (block.id === 'call') {
-        // Corridor option A
+        // ДУ-1 Option A: окликнуть
+        // Успех если vera_open === true И C1-09 собрана
         const hasVeraOpen = state.flags.vera_open === true;
         const hasC109 = state.clues.includes('C1-09');
         if (hasVeraOpen && hasC109) {
@@ -208,19 +221,21 @@ export default function App() {
       }
       
       if (block.id === 'watch') {
-        // Corridor option B
+        // ДУ-1 Option B: наблюдать
+        // Успех если C1-06 ИЛИ C1-07
         const hasC106 = state.clues.includes('C1-06');
         const hasC107 = state.clues.includes('C1-07');
         if (hasC106 || hasC107) {
-          goToScene('1.3б_success');
+          goToScene('1.3b_success');
         } else {
-          goToScene('1.3б');
+          goToScene('1.3b');
         }
         return;
       }
       
       if (block.id === 'truth' && state.currentScene === '2.5') {
-        // Letter option A
+        // ДУ-2 Option A: правда
+        // Успех если vera_open === true И C1-09 И C2-05
         const hasVeraOpen = state.flags.vera_open === true;
         const hasC109 = state.clues.includes('C1-09');
         const hasC205 = state.clues.includes('C2-05');
@@ -233,7 +248,8 @@ export default function App() {
       }
       
       if (block.id === 'letter' && state.currentScene === '2.7c') {
-        // Final evidence check
+        // 2.7 Финальное обвинение
+        // Успех если имя = Вера Линд И мотив = сын/месть И улика = C2-05 И C2-02
         const accusedVera = String(state.flags._accused_name) === 'vera';
         const correctMotive = String(state.flags._accused_motive) === 'revenge';
         const hasC205 = state.clues.includes('C2-05');
@@ -285,7 +301,11 @@ export default function App() {
 
   // Handle retry after death
   const handleRetry = () => {
-    if (state.intuition > 0) {
+    // Intuition doesn't work in 2.7 and 2.8
+    const currentSceneData = SCENES[deathScene || ''];
+    const isInFinalScene = deathScene?.startsWith('2.7') || deathScene?.startsWith('2.8');
+    
+    if (state.intuition > 0 && !isInFinalScene) {
       setState(prev => ({ ...prev, intuition: prev.intuition - 1 }));
       goToScene(previousScene || state.currentScene);
     }
@@ -311,6 +331,15 @@ export default function App() {
 
   // Render block
   const renderBlock = (block: Block, index: number) => {
+    // Special handling for conditional text in scene 2.6
+    if (block.type === 'narration' && state.currentScene === '2.6' && block.text.includes('Прайс принёс конверт')) {
+      const priceClosed = state.flags.price_closed === true;
+      const text = priceClosed 
+        ? 'Мэй — горничная — принесла конверт. Прайс не вышел. Он боится.'
+        : 'Прайс положил конверт перед вами. Руки дрожали.';
+      return <p key={index} className="narration fade-in">{text}</p>;
+    }
+    
     switch (block.type) {
       case 'narration':
         return <p key={index} className="narration fade-in">{block.text}</p>;
@@ -560,7 +589,9 @@ export default function App() {
 
   const renderDeath = () => {
     const scene = SCENES[deathScene || ''];
-    const canRetry = state.intuition > 0 && deathScene !== '2.7_death' && deathScene !== '2.5a_death';
+    // Intuition doesn't work in 2.7 and 2.8
+    const isInFinalScene = deathScene?.includes('2.7') || deathScene?.includes('2.8');
+    const canRetry = state.intuition > 0 && !isInFinalScene;
     
     // Determine if this is a final death (no retry possible)
     const isFinalDeath = !canRetry;
